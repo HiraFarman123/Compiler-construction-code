@@ -1,0 +1,277 @@
+Java 21.0.10 / OpenJDK 64-Bit Server VM / Linux amd64 / maxHeap=1979 MB / cpus=1
+
+=== GRAMMAR EXPERIMENTS ===
+
+--- G1 ambiguous expression ---
+E → E + E | E * E | ( E ) | id
+left-recursive=true factored=false NT=2 prods=5 terminals=5 tableEntries=6 conflicts=[M[E', +] has 2 productions, M[E', *] has 2 productions]
+transformed:
+E → ( E ) E' | id E'
+E' → + E E' | * E E' | ε
+  FIRST(E)=[(, id]  FOLLOW(E)=[$, ), +, *]
+  FIRST(E')=[+, *, ε]  FOLLOW(E')=[$, ), +, *]
+analysis(LR+LF+FIRST/FOLLOW+table)=27.558 ms  ambiguity(bound=9, exhausted=true, forms=901)=39.0 ms witness=id + id * id derivations=2
+
+--- G2 left-recursive expression ---
+E → E + T | T
+T → T * F | F
+F → ( E ) | id
+left-recursive=true factored=false NT=5 prods=8 terminals=5 tableEntries=13 conflicts=[]
+transformed:
+E → T E'
+E' → + T E' | ε
+T → F T'
+T' → * F T' | ε
+F → ( E ) | id
+  FIRST(E)=[(, id]  FOLLOW(E)=[$, )]
+  FIRST(E')=[+, ε]  FOLLOW(E')=[$, )]
+  FIRST(T)=[(, id]  FOLLOW(T)=[+, $, )]
+  FIRST(T')=[*, ε]  FOLLOW(T')=[+, $, )]
+  FIRST(F)=[(, id]  FOLLOW(F)=[*, +, $, )]
+analysis(LR+LF+FIRST/FOLLOW+table)=2.695 ms  ambiguity(bound=9, exhausted=true, forms=1415)=16.4 ms witness=null derivations=0
+
+--- G3 dangling else ---
+S → if ( C ) S | if ( C ) S else S | a
+C → b
+left-recursive=false factored=true NT=3 prods=5 terminals=6 tableEntries=5 conflicts=[M[S', else] has 2 productions]
+transformed:
+S → if ( C ) S S' | a
+S' → else S | ε
+C → b
+  FIRST(S)=[if, a]  FOLLOW(S)=[$, else]
+  FIRST(S')=[else, ε]  FOLLOW(S')=[$, else]
+  FIRST(C)=[b]  FOLLOW(C)=[)]
+analysis(LR+LF+FIRST/FOLLOW+table)=1.448 ms  ambiguity(bound=11, exhausted=true, forms=18)=0.2 ms witness=if ( b ) if ( b ) a else a derivations=2
+
+--- G4 indirect left recursion ---
+A → B a | b
+B → A c | d
+left-recursive=true factored=false NT=3 prods=6 terminals=4 tableEntries=5 conflicts=[M[A, b] has 2 productions, M[B', a] has 2 productions]
+transformed:
+A → B a | b
+B → b c B' | d B'
+B' → a c B' | ε
+  FIRST(A)=[b, d]  FOLLOW(A)=[$]
+  FIRST(B)=[b, d]  FOLLOW(B)=[a]
+  FIRST(B')=[a, ε]  FOLLOW(B')=[a]
+analysis(LR+LF+FIRST/FOLLOW+table)=0.286 ms  ambiguity(bound=9, exhausted=true, forms=17)=0.1 ms witness=null derivations=0
+
+--- G5 original <cond> (Table 1) ---
+Cond → Keyw ( Stm ) | Cond Keyw ( Stm )
+Keyw → if
+Stm → id < id
+left-recursive=true factored=false NT=4 prods=5 terminals=5 tableEntries=5 conflicts=[]
+transformed:
+Cond → Keyw ( Stm ) Cond'
+Cond' → Keyw ( Stm ) Cond' | ε
+Keyw → if
+Stm → id < id
+  FIRST(Cond)=[if]  FOLLOW(Cond)=[$]
+  FIRST(Cond')=[ε, if]  FOLLOW(Cond')=[$]
+  FIRST(Keyw)=[if]  FOLLOW(Keyw)=[(]
+  FIRST(Stm)=[id]  FOLLOW(Stm)=[)]
+analysis(LR+LF+FIRST/FOLLOW+table)=0.221 ms  ambiguity(bound=9, exhausted=true, forms=7)=0.1 ms witness=null derivations=0
+
+--- G_C complete C-like grammar ---
+Program → TopList
+TopList → Top TopList | ε
+Top → Type id TopTail | void id ( ParamsOpt ) FuncBody | NonDeclStmt
+TopTail → ( ParamsOpt ) FuncBody | VarTail
+FuncBody → Block | ;
+ParamsOpt → Param ParamRest | ε
+ParamRest → , Param ParamRest | ε
+Param → Type id
+VarTail → InitOpt MoreVars ;
+MoreVars → , id InitOpt MoreVars | ε
+InitOpt → = Expr | ε
+Type → int | char | float
+Block → { StmtList }
+StmtList → Stmt StmtList | ε
+Stmt → Type id VarTail | NonDeclStmt
+NonDeclStmt → id IdTail ; | if ( Cond ) Stmt ElsePart | return RetExpr ; | Block | ;
+ElsePart → else Stmt | ε
+RetExpr → Expr | ε
+IdTail → AssignOp Expr | ( ArgsOpt )
+AssignOp → = | += | -=
+ArgsOpt → Expr ArgRest | ε
+ArgRest → , Expr ArgRest | ε
+Cond → Expr RelOp Expr
+RelOp → < | > | <= | >= | == | !=
+Expr → Term Expr'
+Expr' → AddOp Term Expr' | ε
+AddOp → + | -
+Term → Factor Term'
+Term' → MulOp Factor Term' | ε
+MulOp → * | /
+Factor → ( Expr ) | id FactorTail | num | charlit | - Factor
+FactorTail → ( ArgsOpt ) | ε
+left-recursive=false factored=false NT=32 prods=70 terminals=29 tableEntries=179 conflicts=[M[ElsePart, else] has 2 productions]
+analysis(LR+LF+FIRST/FOLLOW+table)=1.996 ms  ambiguity(bound=7, exhausted=true, forms=23154)=106.4 ms witness=null derivations=0
+G_C pipeline median=0.528 ms p95=5.457 ms
+G_C FIRST/FOLLOW:
+  Program | FIRST=[ε, void, int, char, float, id, if, return, {, ;] | FOLLOW=[$]
+  TopList | FIRST=[ε, void, int, char, float, id, if, return, {, ;] | FOLLOW=[$]
+  Top | FIRST=[void, int, char, float, id, if, return, {, ;] | FOLLOW=[void, int, char, float, id, if, return, {, ;, $]
+  TopTail | FIRST=[(, =, ,, ;] | FOLLOW=[void, int, char, float, id, if, return, {, ;, $]
+  FuncBody | FIRST=[;, {] | FOLLOW=[void, int, char, float, id, if, return, {, ;, $]
+  ParamsOpt | FIRST=[ε, int, char, float] | FOLLOW=[)]
+  ParamRest | FIRST=[,, ε] | FOLLOW=[)]
+  Param | FIRST=[int, char, float] | FOLLOW=[,, )]
+  VarTail | FIRST=[=, ,, ;] | FOLLOW=[void, int, char, float, id, if, return, {, ;, $, }, else]
+  MoreVars | FIRST=[,, ε] | FOLLOW=[;]
+  InitOpt | FIRST=[=, ε] | FOLLOW=[,, ;]
+  Type | FIRST=[int, char, float] | FOLLOW=[id]
+  Block | FIRST=[{] | FOLLOW=[void, int, char, float, id, if, return, {, ;, $, }, else]
+  StmtList | FIRST=[ε, int, char, float, id, if, return, {, ;] | FOLLOW=[}]
+  Stmt | FIRST=[int, char, float, id, if, return, {, ;] | FOLLOW=[int, char, float, id, if, return, {, ;, }, else, void, $]
+  NonDeclStmt | FIRST=[id, if, return, {, ;] | FOLLOW=[void, int, char, float, id, if, return, {, ;, $, }, else]
+  ElsePart | FIRST=[else, ε] | FOLLOW=[void, int, char, float, id, if, return, {, ;, $, }, else]
+  RetExpr | FIRST=[ε, (, id, num, charlit, -] | FOLLOW=[;]
+  IdTail | FIRST=[(, =, +=, -=] | FOLLOW=[;]
+  AssignOp | FIRST=[=, +=, -=] | FOLLOW=[(, id, num, charlit, -]
+  ArgsOpt | FIRST=[ε, (, id, num, charlit, -] | FOLLOW=[)]
+  ArgRest | FIRST=[,, ε] | FOLLOW=[)]
+  Cond | FIRST=[(, id, num, charlit, -] | FOLLOW=[)]
+  RelOp | FIRST=[<, >, <=, >=, ==, !=] | FOLLOW=[(, id, num, charlit, -]
+  Expr | FIRST=[(, id, num, charlit, -] | FOLLOW=[,, ;, ), <, >, <=, >=, ==, !=]
+  Expr' | FIRST=[ε, +, -] | FOLLOW=[,, ;, ), <, >, <=, >=, ==, !=]
+  AddOp | FIRST=[+, -] | FOLLOW=[(, id, num, charlit, -]
+  Term | FIRST=[(, id, num, charlit, -] | FOLLOW=[+, -, ,, ;, ), <, >, <=, >=, ==, !=]
+  Term' | FIRST=[ε, *, /] | FOLLOW=[+, -, ,, ;, ), <, >, <=, >=, ==, !=]
+  MulOp | FIRST=[*, /] | FOLLOW=[(, id, num, charlit, -]
+  Factor | FIRST=[(, id, num, charlit, -] | FOLLOW=[*, /, +, -, ,, ;, ), <, >, <=, >=, ==, !=]
+  FactorTail | FIRST=[(, ε] | FOLLOW=[*, /, +, -, ,, ;, ), <, >, <=, >=, ==, !=]
+
+=== TEST CORPUS ===
+V1   DEC  PASS   exp=accept rdp=accept table=accept tokens=5      seeded=0 detected=0 diags=0  int a = 9;
+V2   DEC  PASS   exp=accept rdp=accept table=accept tokens=3      seeded=0 detected=0 diags=0  int hiraf;
+V3   DEC  PASS   exp=accept rdp=accept table=accept tokens=3      seeded=0 detected=0 diags=0  char f;
+V4   DEC  PASS   exp=accept rdp=accept table=accept tokens=5      seeded=0 detected=0 diags=0  float x = 3.14;
+V5   DEC  PASS   exp=accept rdp=accept table=accept tokens=9      seeded=0 detected=0 diags=0  int a, b = 2, c;
+V6   DEC  PASS   exp=accept rdp=accept table=accept tokens=5      seeded=0 detected=0 diags=0  char c = 'x';
+V7   DEC  PASS   exp=accept rdp=accept table=accept tokens=5      seeded=0 detected=0 diags=0  char nl = '\n';
+V8   EXP  PASS   exp=accept rdp=accept table=accept tokens=8      seeded=0 detected=0 diags=0  a = b + c * d;
+V9   EXP  PASS   exp=accept rdp=accept table=accept tokens=4      seeded=0 detected=0 diags=0  a += 1;
+V10  EXP  PASS   exp=accept rdp=accept table=accept tokens=6      seeded=0 detected=0 diags=0  a -= b / 2;
+V11  EXP  PASS   exp=accept rdp=accept table=accept tokens=16     seeded=0 detected=0 diags=0  x = (a + b) * (c - d) / e;
+V12  EXP  PASS   exp=accept rdp=accept table=accept tokens=12     seeded=0 detected=0 diags=0  x = ((((a))));
+V13  EXP  PASS   exp=accept rdp=accept table=accept tokens=12     seeded=0 detected=0 diags=0  x = -a + -(b * c);
+V14  EXP  PASS   exp=accept rdp=accept table=accept tokens=16     seeded=0 detected=0 diags=0  x = f(a, b + 1, g(c));
+V15  EXP  PASS   exp=accept rdp=accept table=accept tokens=5      seeded=0 detected=0 diags=0  print(x);
+V16  EXP  PASS   exp=accept rdp=accept table=accept tokens=16     seeded=0 detected=0 diags=0  y = a * b + c * d - e / f + g;
+V17  EXP  PASS   exp=accept rdp=accept table=accept tokens=6      seeded=0 detected=0 diags=0  x=a+b;
+V18  EXP  PASS   exp=accept rdp=accept table=accept tokens=4      seeded=0 detected=0 diags=0  int_var_1 = _x2;
+V19  CND  PASS   exp=accept rdp=accept table=accept tokens=10     seeded=0 detected=0 diags=0  if (a < b) x = 1;
+V20  CND  PASS   exp=accept rdp=accept table=accept tokens=19     seeded=0 detected=0 diags=0  if (a == 3) { x = 1; } else { x = 2; }
+V21  CND  PASS   exp=accept rdp=accept table=accept tokens=21     seeded=0 detected=0 diags=0  if (a >= b) if (c != d) x = 1; else x = 2;
+V22  CND  PASS   exp=accept rdp=accept table=accept tokens=34     seeded=0 detected=0 diags=0  if (a <= b + 1) { if (c > d) { y = 1; } else { y = 2; } }...
+V23  CND  PASS   exp=accept rdp=accept table=accept tokens=15     seeded=0 detected=0 diags=0  if ((a + b) * c > d - e) ;
+V24  FUN  PASS   exp=accept rdp=accept table=accept tokens=7      seeded=0 detected=0 diags=0  void khizar(int a);
+V25  FUN  PASS   exp=accept rdp=accept table=accept tokens=14     seeded=0 detected=0 diags=0  void khizar(int a) { a = a + 1; }
+V26  FUN  PASS   exp=accept rdp=accept table=accept tokens=16     seeded=0 detected=0 diags=0  int add(int a, int b) { return a + b; }
+V27  FUN  PASS   exp=accept rdp=accept table=accept tokens=6      seeded=0 detected=0 diags=0  void f() { }
+V28  FUN  PASS   exp=accept rdp=accept table=accept tokens=23     seeded=0 detected=0 diags=0  float avg(float a, float b) { float s = a + b; return s /...
+V29  FUN  PASS   exp=accept rdp=accept table=accept tokens=8      seeded=0 detected=0 diags=0  void g() { return; }
+V30  BND  PASS   exp=accept rdp=accept table=accept tokens=10     seeded=0 detected=0 diags=0  int a = 1; // comment⏎/* block⏎ comment */ int b = 2;
+V31  BND  PASS   exp=accept rdp=accept table=accept tokens=0      seeded=0 detected=0 diags=0  
+V32  BND  PASS   exp=accept rdp=accept table=accept tokens=1      seeded=0 detected=0 diags=0  ;
+V33  BND  PASS   exp=accept rdp=accept table=accept tokens=5      seeded=0 detected=0 diags=0  int aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...
+V34  BND  PASS   exp=accept rdp=accept table=accept tokens=5      seeded=0 detected=0 diags=0  int big = 2147483647;
+V35  BND  PASS   exp=accept rdp=accept table=accept tokens=204    seeded=0 detected=0 diags=0  x = (((((((((((((((((((((((((((((((((((((((((((((((((((((...
+V36  BND  PASS   exp=accept rdp=accept table=accept tokens=104    seeded=0 detected=0 diags=0  {{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{x = 1;}...
+V37  BND  PASS   exp=accept rdp=accept table=accept tokens=184    seeded=0 detected=0 diags=0  if (a < b) if (a < b) if (a < b) if (a < b) if (a < b) if...
+V38  BND  PASS   exp=accept rdp=accept table=accept tokens=2      seeded=0 detected=0 diags=0  { }
+V39  PRG  PASS   exp=accept rdp=accept table=accept tokens=209    seeded=0 detected=0 diags=0  /* medium-sized program used as an end-to-end validation ...
+V40  PRG  PASS   exp=accept rdp=accept table=accept tokens=18338  seeded=0 detected=0 diags=0  int fn0(int a, int b) {⏎  if (a == 485) if (b != 485) z =...
+I1   SYN  PASS   exp=reject rdp=reject table=reject tokens=4      seeded=1 detected=1 diags=1  int a = ;
+        1:9: syntax error: expected operand but found ';'
+I2   SYN  PASS   exp=reject rdp=reject table=reject tokens=9      seeded=1 detected=1 diags=1  if (a < b x = 1;
+        1:11: syntax error: expected ')' but found 'x'
+I3   SYN  PASS   exp=reject rdp=reject table=reject tokens=4      seeded=1 detected=1 diags=1  int a = 9
+        1:10: syntax error: expected ';' but found '$'
+I4   SYN  PASS   exp=reject rdp=reject table=reject tokens=7      seeded=1 detected=1 diags=1  a = b + * c;
+        1:9: syntax error: expected operand but found '*'
+I5   SYN  PASS   exp=reject rdp=reject table=reject tokens=4      seeded=1 detected=1 diags=1  int = 5;
+        1:5: syntax error: expected identifier but found '='
+I6   SYN  PASS   exp=reject rdp=reject table=reject tokens=9      seeded=1 detected=1 diags=1  if a < b) x = 1;
+        1:4: syntax error: expected '(' but found 'a'
+I7   SYN  PASS   exp=reject rdp=reject table=reject tokens=7      seeded=1 detected=1 diags=1  x = (a + b;
+        1:11: syntax error: expected ')' but found ';'
+I8   SYN  PASS   exp=reject rdp=reject table=reject tokens=7      seeded=1 detected=1 diags=1  void f(int a { }
+        1:14: syntax error: expected ')' but found '{'
+I9   SYN  PASS   exp=reject rdp=reject table=reject tokens=8      seeded=1 detected=1 diags=1  if (a) x = 1;
+        1:6: syntax error: expected relational operator but found ')'
+I10  SYN  PASS   exp=reject rdp=reject table=reject tokens=5      seeded=1 detected=1 diags=1  else x = 1;
+        1:1: syntax error: expected statement but found 'else'
+I11  SYN  PASS   exp=reject rdp=reject table=reject tokens=5      seeded=1 detected=1 diags=1  x = a b;
+        1:7: syntax error: expected ';' but found 'b'
+I12  SYN  PASS   exp=reject rdp=reject table=reject tokens=3      seeded=1 detected=1 diags=1  return return;
+        1:8: syntax error: expected ';' but found 'return'
+I13  SYN  PASS   exp=reject rdp=reject table=reject tokens=5      seeded=1 detected=1 diags=1  { x = 1;
+        1:9: syntax error: expected '}' but found '$'
+I14  SYN  PASS   exp=reject rdp=reject table=reject tokens=5      seeded=1 detected=1 diags=1  x = 1; }
+        1:8: syntax error: unmatched '}' but found '}'
+I15  SYN  PASS   exp=reject rdp=reject table=reject tokens=4      seeded=1 detected=1 diags=1  x == 1;
+        1:3: syntax error: expected assignment operator or '(' but found '=='
+I16  SYN  PASS   exp=reject rdp=reject table=reject tokens=9      seeded=1 detected=1 diags=1  void f(int a, ) { }
+        1:15: syntax error: expected parameter type but found ')'
+I17  SYN  PASS   exp=reject rdp=reject table=reject tokens=7      seeded=1 detected=1 diags=1  float f(float) { }
+        1:14: syntax error: expected parameter name but found ')'
+I18  SYN  PASS   exp=reject rdp=reject table=reject tokens=9      seeded=1 detected=1 diags=1  int a = 9 int b = 2;
+        1:11: syntax error: expected ';' but found 'int'
+I19  LEX  PASS   exp=reject rdp=reject table=reject tokens=5      seeded=1 detected=1 diags=2  int 9a = 1;
+        1:5: lexical error: malformed identifier/number '9a'
+        1:8: syntax error: expected identifier but found '='
+I20  LEX  PASS   exp=reject rdp=reject table=reject tokens=6      seeded=1 detected=1 diags=2  x = a @ b;
+        1:7: lexical error: unexpected character '@'
+        1:9: syntax error: expected ';' but found 'b'
+I21  LEX  PASS   exp=reject rdp=reject table=reject tokens=5      seeded=1 detected=1 diags=2  char c = 'ab';
+        1:10: lexical error: malformed character literal
+        1:14: syntax error: expected operand but found ';'
+I22  LEX  PASS   exp=reject rdp=reject table=reject tokens=6      seeded=1 detected=1 diags=2  x = a ! b;
+        1:7: lexical error: unexpected character '!'
+        1:9: syntax error: expected ';' but found 'b'
+M1   MUL  PASS   exp=reject rdp=reject table=reject tokens=24     seeded=3 detected=3 diags=3  int a = ;⏎int b = 2;⏎c = * 3;⏎int d = 4;⏎e = (5;
+        1:9: syntax error: expected operand but found ';'
+        3:5: syntax error: expected operand but found '*'
+        5:7: syntax error: expected ')' but found ';'
+M2   MUL  PASS   exp=reject rdp=reject table=reject tokens=27     seeded=3 detected=3 diags=3  if (a < b x = 1;⏎y = 2;⏎z = 2 + ;⏎w = 1;⏎v = (3;
+        1:11: syntax error: expected ')' but found 'x'
+        3:9: syntax error: expected operand but found ';'
+        5:7: syntax error: expected ')' but found ';'
+M3   MUL  PASS   exp=reject rdp=reject table=reject tokens=42     seeded=4 detected=4 diags=4  void f(int a) {⏎  a = ;⏎  int b = 2;⏎  c = 3 +;⏎  b = 1;⏎...
+        2:7: syntax error: expected operand but found ';'
+        4:10: syntax error: expected operand but found ';'
+        6:11: syntax error: expected operand but found ')'
+        8:13: syntax error: expected operand but found ';'
+M4   MUL  PASS   exp=reject rdp=reject table=reject tokens=27     seeded=3 detected=3 diags=5  int x = 1 $ 2;⏎int ok = 0;⏎int y = @;⏎int ok2 = 0;⏎z = 3 +;
+        1:11: lexical error: unexpected character '$'
+        3:9: lexical error: unexpected character '@'
+        1:13: syntax error: expected ';' but found '2'
+        3:10: syntax error: expected operand but found ';'
+        5:8: syntax error: expected operand but found ';'
+M5   MUL  PASS   exp=reject rdp=reject table=reject tokens=34     seeded=3 detected=3 diags=3  void f() {⏎  if (a < b) {⏎    x = ;⏎  } else {⏎    y = 1;...
+        3:9: syntax error: expected operand but found ';'
+        7:12: syntax error: expected operand but found ';'
+        9:9: syntax error: expected operand but found ';'
+M6   MUL  PASS   exp=reject rdp=reject table=reject tokens=18503  seeded=10 detected=10 diags=10  int fn0(int a, int b) {⏎  if (a == 111) if (b != 111) z =...
+TOTAL 68/68 correct; RDP vs table-driven agreement 68/68
+seeded=48 detected=48 reported=54 spurious=6
+  cat BND: n=9 correct=9 agree=9
+  cat CND: n=5 correct=5 agree=5
+  cat DEC: n=7 correct=7 agree=7
+  cat EXP: n=11 correct=11 agree=11
+  cat FUN: n=6 correct=6 agree=6
+  cat LEX: n=4 correct=4 agree=4
+  cat MUL: n=6 correct=6 agree=6
+  cat PRG: n=2 correct=2 agree=2
+  cat SYN: n=18 correct=18 agree=18
+
+=== PERFORMANCE ===
+tokens,lines,chars,lex_median_ms,lex_iqr_ms,parse_median_ms,parse_iqr_ms,table_median_ms,total_median_ms,ns_per_token,lex_alloc_MB,parse_alloc_MB,tokens_retained_MB,max_depth
+1425,111,3503,0.333,0.189,0.103,0.084,0.409,0.436,306.0,0.12,0.00,0.00,19
+9218,770,23468,0.627,0.360,0.273,0.037,2.057,0.899,97.6,0.78,0.00,0.62,19
+90794,7603,230834,4.077,5.126,1.409,0.354,8.861,5.486,60.4,7.66,0.00,7.37,19
+903757,75960,2302592,31.405,16.335,15.306,1.638,96.094,46.711,51.7,76.27,0.00,72.35,19
+max parenthesis nesting with 512 KB stack = 4366
+max parenthesis nesting with 16384 KB stack = 173667
